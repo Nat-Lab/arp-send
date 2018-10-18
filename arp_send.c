@@ -8,7 +8,8 @@ void *arp_send(void *req) {
     arpctx_t *ctx = (arpctx_t *) req;
     arp_fill(ctx->lctx, ctx->arp, &ctx->ltags);
     while (1) {
-        printf("Bytes Wrote: %d\n", libnet_write(ctx->lctx));
+        fprintf(stderr, "[SEND] %s", ctx_str(&ctx->arp));
+        if (libnet_write(ctx->lctx) < 0) fprintf(stderr, "[WARN] Can't send: %s", libnet_geterror(ctx->lctx));
         sleep(ctx->intv);
     }
     return NULL;
@@ -64,7 +65,28 @@ void ctxlist_insert(arpctx_list **ctxlist, arpctx_t *ctx) {
     ctxptr->next->next = NULL;
 }
 
-void ctxlist_insertf(arpctx_list *ctxlist, char *file) {
+int ctxlist_insertf(arpctx_list **ctxlist, char *errbuf, char *file) {
+    FILE *fp = fopen(file, "r");
+    if(!fp) return -1;
+
+    fseek(fp, 0L, SEEK_END);
+    long sz = ftell(fp);
+    rewind(fp);
+
+    char *buf = (char *) malloc(sz+1);
+
+    fread(buf, sz, 1, fp);
+
+    char **argv = (char **) malloc(8192 * sizeof(char *)), *cur;
+    int i = 0;
+    while((cur = strsep(&buf, " \n\t")) != NULL) {
+        argv[i] = (char *) malloc(strlen(cur) + 1);
+        strcpy(argv[i++], cur);
+    };
+
+    cmd_parse(i, argv, errbuf, ctxlist);
+
+    return 0;
 }
 
 arpctx_t* make_arpctx(u_int16_t op, char **argv, int argi, char *errbuf) {
@@ -88,42 +110,70 @@ arpctx_t* make_arpctx(u_int16_t op, char **argv, int argi, char *errbuf) {
     return ctx;
 }
 
-int main (int argc, char **argv) {
-    char errbuf[LIBNET_ERRBUF_SIZE];
-
-    arpctx_list *ctxlist = NULL;
-
-    for(int argi = 1; argi < argc; argi++) {
+int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
+    for(int argi = 0; argi < argc; argi++) {
         if(!strcmp(argv[argi], "reply")) {
             if(argc < argi + 9) {
-                fprintf(stderr, "Insufficient number of arguments after 'reply', expcet 8, saw %d.\n", argc - argi - 1);
+                fprintf(stderr, "[CRIT] Insufficient number of arguments after 'reply', expcet 8, saw %d.\n", argc - argi - 1);
                 return 1;
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REPLY, argv, argi, errbuf);
-            ctxlist_insert(&ctxlist, ctx);
+            fprintf(stderr, "[ADD] %s", ctx_str(&ctx->arp));
+            ctxlist_insert(ctxlist, ctx);
             argi += 8;
         }
         if(!strcmp(argv[argi], "request")) {
             if(argc < argi + 9) {
-                fprintf(stderr, "Insufficient number of arguments after 'request', expcet 8, saw %d.\n", argc - argi - 1);
+                fprintf(stderr, "[CRIT] Insufficient number of arguments after 'request', expcet 8, saw %d.\n", argc - argi - 1);
                 return 1;
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REQUEST, argv, argi, errbuf);
-            ctxlist_insert(&ctxlist, ctx);
+            fprintf(stderr, "[ADD] %s", ctx_str(&ctx->arp));
+            ctxlist_insert(ctxlist, ctx);
             argi += 8;
         }
         if(!strcmp(argv[argi], "source")) {
             if(argc < argi + 2) {
-                fprintf(stderr, "Insufficient number of arguments after 'source', expcet 1, saw %d.\n", argc - argi - 1);
+                fprintf(stderr, "[CRIT] Insufficient number of arguments after 'source', expcet 1, saw %d.\n", argc - argi - 1);
                 return 1;
             }
-            ctxlist_insertf(ctxlist, argv[++argi]);
+            ctxlist_insertf(ctxlist, errbuf, argv[++argi]);
         }
     }
 
+    return 0;
+}
+
+char* ctx_str(arpinfo_t *ctx) {
+    char *buf = (char *) malloc(256);
+
+    sprintf(
+        buf,
+        "%s %02x:%02x:%02x:%02x:%02x:%02x/%d.%d.%d.%d @ %02x:%02x:%02x:%02x:%02x:%02x => %02x:%02x:%02x:%02x:%02x:%02x/%d.%d.%d.%d @ %02x:%02x:%02x:%02x:%02x:%02x\n",
+        ctx->op == ARPOP_REPLY ? "REPLY" : "REQUEST",
+        ctx->arp_ether_src[0], ctx->arp_ether_src[1], ctx->arp_ether_src[2], ctx->arp_ether_src[3], ctx->arp_ether_src[4], ctx->arp_ether_src[5],
+        ctx->ip_src & 0xFF,(ctx->ip_src >> 8) & 0xFF, (ctx->ip_src >> 16) & 0xFF, (ctx->ip_src >> 24) & 0xFF,
+        ctx->eth_ether_src[0], ctx->eth_ether_src[1], ctx->eth_ether_src[2], ctx->eth_ether_src[3], ctx->eth_ether_src[4], ctx->eth_ether_src[5],
+        ctx->arp_ether_dst[0], ctx->arp_ether_dst[1], ctx->arp_ether_dst[2], ctx->arp_ether_dst[3], ctx->arp_ether_dst[4], ctx->arp_ether_dst[5],
+        ctx->ip_dst & 0xFF,(ctx->ip_dst >> 8) & 0xFF, (ctx->ip_dst >> 16) & 0xFF, (ctx->ip_dst >> 24) & 0xFF,
+        ctx->eth_ether_dst[0], ctx->eth_ether_dst[1], ctx->eth_ether_dst[2], ctx->eth_ether_dst[3], ctx->eth_ether_dst[4], ctx->eth_ether_dst[5]
+    );
+
+    return buf;
+}
+
+int main(int argc, char **argv) {
+    char errbuf[LIBNET_ERRBUF_SIZE];
+
+    arpctx_list *ctxlist = NULL;
+
+    cmd_parse(argc, argv, errbuf, &ctxlist);
+
     arpctx_list *ctxptr = ctxlist;
 
+    int i = 0;
     while (ctxptr != NULL) {
+        ctxptr->ctx->id = i++;
         pthread_create(&ctxptr->tid, NULL, arp_send, (void *) ctxptr->ctx);
         ctxptr = ctxptr->next;
     }

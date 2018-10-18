@@ -21,6 +21,7 @@ typedef struct {
     arptags_t ltags;
     libnet_t *lctx;
     unsigned int intv;
+    int id;
 } arpctx_t;
 
 typedef struct arpctx_list {
@@ -31,7 +32,9 @@ typedef struct arpctx_list {
 
 void *arp_send(void *req);
 void ctxlist_insert(arpctx_list **ctxlist, arpctx_t *ctx);
-void ctxlist_insertf(arpctx_list *ctxlist, char *file);
+char* ctx_str(arpinfo_t *ctx);
+int ctxlist_insertf(arpctx_list **ctxlist, char *errbuf, char *file);
 int ether_parse(uint8_t *dst, char *src);
 int arp_fill(libnet_t *lctx, const arpinfo_t arp, arptags_t *tags);
+int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist);
 arpctx_t* make_arpctx(u_int16_t op, char **argv, int argi, char *errbuf);
