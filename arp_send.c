@@ -8,12 +8,12 @@ void *arp_send(void *req) {
     arpctx_t *ctx = (arpctx_t *) req;
     int ret;
     if((ret = arp_fill(ctx->lctx, ctx->arp, &ctx->ltags)) < 0) {
-        fprintf(stderr, "[CRIT] Error creating %s: %s", ret == -1 ? "ARP pcaket" : "ethernet packet", libnet_geterror(ctx->lctx));
+        fprintf(stderr, "[CRIT] Error creating %s: %s\n", ret == -1 ? "ARP pcaket" : "ethernet packet", libnet_geterror(ctx->lctx));
         return NULL;
     }
     while (1) {
         fprintf(stderr, "[SEND] %s", ctx_str(&ctx->arp));
-        if (libnet_write(ctx->lctx) < 0) fprintf(stderr, "[WARN] Can't send: %s", libnet_geterror(ctx->lctx));
+        if (libnet_write(ctx->lctx) < 0) fprintf(stderr, "[WARN] Can't send: %s.\n", libnet_geterror(ctx->lctx));
         sleep(ctx->intv);
     }
     return NULL;
@@ -124,7 +124,7 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REPLY, argv, argi, errbuf);
             if(ctx == NULL) {
-                fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.");
+                fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.\n");
                 return -1;
             }
             fprintf(stderr, "[ADD] %s", ctx_str(&ctx->arp));
@@ -138,7 +138,7 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REQUEST, argv, argi, errbuf);
             if(ctx == NULL) {
-                fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.");
+                fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.\n");
                 return -1;
             }
             fprintf(stderr, "[ADD] %s", ctx_str(&ctx->arp));
@@ -151,7 +151,7 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
                 return -1;
             }
             if(ctxlist_insertf(ctxlist, errbuf, argv[++argi]) < 0) {
-                fprintf(stderr, "[CRIT] ctxlist_insertf: Invalid argument.");
+                fprintf(stderr, "[CRIT] ctxlist_insertf: Invalid argument.\n");
                 return -1;
             }
         }
@@ -179,12 +179,12 @@ char* ctx_str(arpinfo_t *ctx) {
 }
 
 void print_help(void) {
-    fprintf(stderr, "Usage: arp_send IFN COMMAND [COMMAND...]\n");
-    fprintf(stderr, "where IFN := Interface name.\n");
-    fprintf(stderr, "      COMMAND := { request ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
-    fprintf(stderr, "                   reply ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
+    fprintf(stderr, "Usage: arp_send COMMAND [COMMAND...]\n");
+    fprintf(stderr, "      COMMAND := { request IFN ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
+    fprintf(stderr, "                   reply IFN ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
     fprintf(stderr, "                   source SOURCEFILE }\n");
-    fprintf(stderr, "where ETHER_MAC_SRC := Ethernet source MAC.\n");
+    fprintf(stderr, "where IFN := Interface name.\n");
+    fprintf(stderr, "      ETHER_MAC_SRC := Ethernet source MAC.\n");
     fprintf(stderr, "      ETHER_MAC_DST := Ethernet destination MAC.\n");
     fprintf(stderr, "      ARP_MAC_SRC := ARP source MAC.\n");
     fprintf(stderr, "      ARP_MAC_DST := ARP destination MAC.\n");
@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
     }
 
     if(cmd_parse(argc, argv, errbuf, &ctxlist) < 0) {
-        fprintf(stderr, "[CRIT] cmd_parse: Invalid argument.");
+        fprintf(stderr, "[CRIT] cmd_parse: Invalid argument.\n");
         print_help();
         return 1;
     }
