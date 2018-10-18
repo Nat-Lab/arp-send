@@ -4,16 +4,17 @@
 #include <libnet.h>
 #include "arp_send.h"
 
-void *arp_sender(void *req) {
+void *arp_send(void *req) {
     arpctx_t *ctx = (arpctx_t *) req;
+    arp_fill(ctx->lctx, ctx->arp, &ctx->ltags);
     while (1) {
-        printf("Bytes Wrote: %d\n", arp_send(ctx->arp, &ctx->ltags, ctx->lctx));
+        printf("Bytes Wrote: %d\n", libnet_write(ctx->lctx));
         sleep(ctx->intv);
     }
     return NULL;
 }
 
-int arp_send(const arpinfo_t arp, arptags_t *tags, libnet_t *lctx) {
+int arp_fill(libnet_t *lctx, const arpinfo_t arp, arptags_t *tags) {
     tags->arp = libnet_build_arp(
         ARPHRD_ETHER,
         ETHERTYPE_IP,
@@ -37,11 +38,7 @@ int arp_send(const arpinfo_t arp, arptags_t *tags, libnet_t *lctx) {
 
     if(tags->ether == -1) return -2;
 
-    int bytes_written = libnet_write(lctx);
-
-    if(bytes_written == -1) return -3;
-
-    return bytes_written;
+    return 0;
 }
 
 int ether_parse(u_int8_t *dst, char *src) {
@@ -127,7 +124,7 @@ int main (int argc, char **argv) {
     arpctx_list *ctxptr = ctxlist;
 
     while (ctxptr != NULL) {
-        pthread_create(&ctxptr->tid, NULL, arp_sender, (void *) ctxptr->ctx);
+        pthread_create(&ctxptr->tid, NULL, arp_send, (void *) ctxptr->ctx);
         ctxptr = ctxptr->next;
     }
 
