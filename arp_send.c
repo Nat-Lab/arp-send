@@ -6,7 +6,11 @@
 
 void *arp_send(void *req) {
     arpctx_t *ctx = (arpctx_t *) req;
-    arp_fill(ctx->lctx, ctx->arp, &ctx->ltags);
+    int ret;
+    if((ret = arp_fill(ctx->lctx, ctx->arp, &ctx->ltags)) < 0) {
+        fprintf(stderr, "[CRIT] Error creating %s: %s", ret == -1 ? "ARP pcaket" : "ethernet packet", libnet_geterror(ctx->lctx));
+        return NULL;
+    }
     while (1) {
         fprintf(stderr, "[SEND] %s", ctx_str(&ctx->arp));
         if (libnet_write(ctx->lctx) < 0) fprintf(stderr, "[WARN] Can't send: %s", libnet_geterror(ctx->lctx));
@@ -84,9 +88,7 @@ int ctxlist_insertf(arpctx_list **ctxlist, char *errbuf, char *file) {
         strcpy(argv[i++], cur);
     };
 
-    cmd_parse(i, argv, errbuf, ctxlist);
-
-    return 0;
+    return cmd_parse(i, argv, errbuf, ctxlist);
 }
 
 arpctx_t* make_arpctx(u_int16_t op, char **argv, int argi, char *errbuf) {
@@ -102,10 +104,13 @@ arpctx_t* make_arpctx(u_int16_t op, char **argv, int argi, char *errbuf) {
     inet_pton(AF_INET, argv[argi + 4], (void *) &ctx->arp.ip_src);
     inet_pton(AF_INET, argv[argi + 7], (void *) &ctx->arp.ip_dst);
 
-    ether_parse(ctx->arp.eth_ether_src, argv[argi + 2]);
-    ether_parse(ctx->arp.arp_ether_src, argv[argi + 3]);
-    ether_parse(ctx->arp.eth_ether_dst, argv[argi + 5]);
-    ether_parse(ctx->arp.arp_ether_dst, argv[argi + 6]);
+    int errc = 0;
+    errc += ether_parse(ctx->arp.eth_ether_src, argv[argi + 2]);
+    errc += ether_parse(ctx->arp.arp_ether_src, argv[argi + 3]);
+    errc += ether_parse(ctx->arp.eth_ether_dst, argv[argi + 5]);
+    errc += ether_parse(ctx->arp.arp_ether_dst, argv[argi + 6]);
+
+    if(errc != 0) return NULL;
 
     return ctx;
 }
@@ -118,6 +123,10 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
                 return 1;
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REPLY, argv, argi, errbuf);
+            if(ctx == NULL) {
+                fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.");
+                return -1;
+            }
             fprintf(stderr, "[ADD] %s", ctx_str(&ctx->arp));
             ctxlist_insert(ctxlist, ctx);
             argi += 8;
@@ -125,9 +134,13 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
         if(!strcmp(argv[argi], "request")) {
             if(argc < argi + 9) {
                 fprintf(stderr, "[CRIT] Insufficient number of arguments after 'request', expcet 8, saw %d.\n", argc - argi - 1);
-                return 1;
+                return -1;
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REQUEST, argv, argi, errbuf);
+            if(ctx == NULL) {
+                fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.");
+                return -1;
+            }
             fprintf(stderr, "[ADD] %s", ctx_str(&ctx->arp));
             ctxlist_insert(ctxlist, ctx);
             argi += 8;
@@ -135,9 +148,12 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
         if(!strcmp(argv[argi], "source")) {
             if(argc < argi + 2) {
                 fprintf(stderr, "[CRIT] Insufficient number of arguments after 'source', expcet 1, saw %d.\n", argc - argi - 1);
-                return 1;
+                return -1;
             }
-            ctxlist_insertf(ctxlist, errbuf, argv[++argi]);
+            if(ctxlist_insertf(ctxlist, errbuf, argv[++argi]) < 0) {
+                fprintf(stderr, "[CRIT] ctxlist_insertf: Invalid argument.");
+                return -1;
+            }
         }
     }
 
@@ -162,12 +178,37 @@ char* ctx_str(arpinfo_t *ctx) {
     return buf;
 }
 
+void print_help(void) {
+    fprintf(stderr, "Usage: arp_send IFN COMMAND [COMMAND...]\n");
+    fprintf(stderr, "where IFN := Interface name.\n");
+    fprintf(stderr, "      COMMAND := { request ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
+    fprintf(stderr, "                   reply ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
+    fprintf(stderr, "                   source SOURCEFILE }\n");
+    fprintf(stderr, "where ETHER_MAC_SRC := Ethernet source MAC.\n");
+    fprintf(stderr, "      ETHER_MAC_DST := Ethernet destination MAC.\n");
+    fprintf(stderr, "      ARP_MAC_SRC := ARP source MAC.\n");
+    fprintf(stderr, "      ARP_MAC_DST := ARP destination MAC.\n");
+    fprintf(stderr, "      IP_SRC := ARP source IP.\n");
+    fprintf(stderr, "      IP_DST := ARP destination IP.\n");
+    fprintf(stderr, "      INTV := Time in seconds to wait between sends.\n");
+    fprintf(stderr, "      SOURCEFILE := Name of source file.\n");
+}
+
 int main(int argc, char **argv) {
     char errbuf[LIBNET_ERRBUF_SIZE];
 
     arpctx_list *ctxlist = NULL;
 
-    cmd_parse(argc, argv, errbuf, &ctxlist);
+    if (argc < 2) {
+        print_help();
+        return 0;
+    }
+
+    if(cmd_parse(argc, argv, errbuf, &ctxlist) < 0) {
+        fprintf(stderr, "[CRIT] cmd_parse: Invalid argument.");
+        print_help();
+        return 1;
+    }
 
     arpctx_list *ctxptr = ctxlist;
 
@@ -178,6 +219,11 @@ int main(int argc, char **argv) {
         ctxptr = ctxptr->next;
     }
 
-    pthread_join(ctxlist->tid, NULL);
+    ctxptr = ctxlist;
+
+    while (ctxptr != NULL) {
+        pthread_join(ctxptr->tid, NULL);
+        ctxptr = ctxptr->next;
+    }
 }
 
