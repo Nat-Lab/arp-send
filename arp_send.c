@@ -180,7 +180,7 @@ char* ctx_str(arpinfo_t *ctx) {
 
 void print_help(void) {
     fprintf(stderr, "Usage: arp_send COMMAND [COMMAND...]\n");
-    fprintf(stderr, "      COMMAND := { request IFN ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
+    fprintf(stderr, "where COMMAND := { request IFN ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
     fprintf(stderr, "                   reply IFN ETHER_MAC_SRC ARP_MAC_SRC IP_SRC ETHER_MAC_DST ARP_MAC_DST IP_DST INTV |\n");
     fprintf(stderr, "                   source SOURCEFILE }\n");
     fprintf(stderr, "where IFN := Interface name.\n");
