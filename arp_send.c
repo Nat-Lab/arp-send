@@ -14,7 +14,7 @@ void *arp_send(void *req) {
     while (1) {
         fprintf(stderr, "[SEND] %s", ctx_str(&ctx->arp));
         if (libnet_write(ctx->lctx) < 0) fprintf(stderr, "[WARN] Can't send: %s.\n", libnet_geterror(ctx->lctx));
-        sleep(ctx->intv);
+        usleep(ctx->intv * 1000);
     }
     return NULL;
 }
@@ -190,7 +190,7 @@ void print_help(void) {
     fprintf(stderr, "      ARP_MAC_DST := ARP destination MAC.\n");
     fprintf(stderr, "      IP_SRC := ARP source IP.\n");
     fprintf(stderr, "      IP_DST := ARP destination IP.\n");
-    fprintf(stderr, "      INTV := Time in seconds to wait between sends.\n");
+    fprintf(stderr, "      INTV := Time in milliseconds to wait between sends.\n");
     fprintf(stderr, "      SOURCEFILE := Name of source file.\n");
 }
 
