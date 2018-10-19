@@ -1,7 +1,7 @@
 arp-send
 ---
 
-`arp-send` is a low-level ARP sender that allows you the specify both ethernet source/destination MAC, ARP source/destination MAC, IP source/destination and ARP type.
+`arp-send` is a low-level ARP sender that allows you to specify ethernet source/destination MAC, ARP source/destination MAC, IP source/destination and ARP type.
 
 `arp-send` can be used for anti-ARP spoofing and ARP spoofing. The current anti-ARP spoofing software and ARP-spoofer are just way too heavy and don't offer user much of control. `arp-send` is created to solve this.
 
