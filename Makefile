@@ -1,9 +1,9 @@
 CFLAGS=-O3 -Wall
-LIBS=-lnet
+LIBS=-lnet -pthread
 OBJS=arp_send.o
 
 arp-send: $(OBJS)
-	$(CC) $(CFLAGS) $(LIBS) -o arp-send $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) $(LIBS) -o arp-send
 
 %.o: %.c
 	$(CC) -c -o $@ $< $(CFLAGS)
