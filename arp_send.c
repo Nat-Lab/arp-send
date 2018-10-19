@@ -125,7 +125,7 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
         if(!strcmp(argv[argi], "reply")) {
             if(argc < argi + 9) {
                 fprintf(stderr, "[CRIT] Insufficient number of arguments after 'reply', expcet 8, saw %d.\n", argc - argi - 1);
-                return 1;
+                return -1;
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REPLY, argv, argi, errbuf);
             if(ctx == NULL) {
@@ -137,6 +137,7 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
             free(info);
             ctxlist_insert(ctxlist, ctx);
             argi += 8;
+            continue;
         }
         if(!strcmp(argv[argi], "request")) {
             if(argc < argi + 9) {
@@ -153,6 +154,7 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
             free(info);
             ctxlist_insert(ctxlist, ctx);
             argi += 8;
+            continue;
         }
         if(!strcmp(argv[argi], "source")) {
             if(argc < argi + 2) {
@@ -163,6 +165,7 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
                 fprintf(stderr, "[CRIT] ctxlist_insertf: Invalid argument.\n");
                 return -1;
             }
+            continue;
         }
     }
 
