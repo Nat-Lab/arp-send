@@ -12,7 +12,9 @@ void *arp_send(void *req) {
         return NULL;
     }
     while (1) {
-        fprintf(stderr, "[SEND] %s", ctx_str(&ctx->arp));
+        char *info = ctx_str(&ctx->arp);
+        fprintf(stderr, "[SEND] %s", info);
+        free(info);
         if (libnet_write(ctx->lctx) < 0) fprintf(stderr, "[WARN] Can't send: %s.\n", libnet_geterror(ctx->lctx));
         usleep(ctx->intv * 1000);
     }
@@ -80,6 +82,7 @@ int ctxlist_insertf(arpctx_list **ctxlist, char *errbuf, char *file) {
     char *buf = (char *) malloc(sz+1);
 
     fread(buf, sz, 1, fp);
+    fclose(fp);
 
     char **argv = (char **) malloc(8192 * sizeof(char *)), *cur;
     int i = 0;
@@ -87,6 +90,8 @@ int ctxlist_insertf(arpctx_list **ctxlist, char *errbuf, char *file) {
         argv[i] = (char *) malloc(strlen(cur) + 1);
         strcpy(argv[i++], cur);
     };
+
+    free(buf);
 
     return cmd_parse(i, argv, errbuf, ctxlist);
 }
@@ -127,7 +132,9 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
                 fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.\n");
                 return -1;
             }
-            fprintf(stderr, "[ADD] %s", ctx_str(&ctx->arp));
+            char *info = ctx_str(&ctx->arp);
+            fprintf(stderr, "[ADD] %s", info);
+            free(info);
             ctxlist_insert(ctxlist, ctx);
             argi += 8;
         }
@@ -141,7 +148,9 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
                 fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.\n");
                 return -1;
             }
-            fprintf(stderr, "[ADD] %s", ctx_str(&ctx->arp));
+            char *info = ctx_str(&ctx->arp);
+            fprintf(stderr, "[ADD] %s", info);
+            free(info);
             ctxlist_insert(ctxlist, ctx);
             argi += 8;
         }
@@ -225,5 +234,9 @@ int main(int argc, char **argv) {
         pthread_join(ctxptr->tid, NULL);
         ctxptr = ctxptr->next;
     }
+
+    if(ctxlist == NULL) print_help();
+
+    return 0;
 }
 
