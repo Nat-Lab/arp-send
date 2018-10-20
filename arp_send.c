@@ -8,14 +8,14 @@ void *arp_send(void *req) {
     arpctx_t *ctx = (arpctx_t *) req;
     int ret;
     if((ret = arp_fill(ctx->lctx, ctx->arp, &ctx->ltags)) < 0) {
-        fprintf(stderr, "[CRIT] Error creating %s: %s\n", ret == -1 ? "ARP pcaket" : "ethernet packet", libnet_geterror(ctx->lctx));
+        fprintf(stderr, "[CRIT] arp_send: error creating %s: %s\n", ret == -1 ? "ARP pcaket" : "ethernet packet", libnet_geterror(ctx->lctx));
         return NULL;
     }
     while (1) {
         char *info = ctx_str(&ctx->arp);
-        fprintf(stderr, "[SEND] %s", info);
+        fprintf(stderr, "[INFO] send: %s", info);
         free(info);
-        if (libnet_write(ctx->lctx) < 0) fprintf(stderr, "[WARN] Can't send: %s.\n", libnet_geterror(ctx->lctx));
+        if (libnet_write(ctx->lctx) < 0) fprintf(stderr, "[WARN] arp_send: can't send: %s.\n", libnet_geterror(ctx->lctx));
         usleep(ctx->intv * 1000);
     }
     return NULL;
@@ -73,7 +73,10 @@ void ctxlist_insert(arpctx_list **ctxlist, arpctx_t *ctx) {
 
 int ctxlist_insertf(arpctx_list **ctxlist, char *errbuf, char *file) {
     FILE *fp = fopen(file, "r");
-    if(!fp) return -1;
+    if(!fp) {
+        fprintf(stderr, "[CRIT] ctxlist_insertf: can not open file: \"%s\"", file);
+        return -1;
+    }
 
     fseek(fp, 0L, SEEK_END);
     long sz = ftell(fp);
@@ -87,6 +90,10 @@ int ctxlist_insertf(arpctx_list **ctxlist, char *errbuf, char *file) {
     char **argv = (char **) malloc(8192 * sizeof(char *)), *cur;
     int i = 0;
     while((cur = strsep(&buf, " \n\t")) != NULL) {
+        if(i >= 8192) {
+            fprintf(stderr, "[WARN] ctxlist_insertf: too many commands in file: \"%s\".", file);
+            break;
+        }
         argv[i] = (char *) malloc(strlen(cur) + 1);
         strcpy(argv[i++], cur);
     };
@@ -106,6 +113,11 @@ arpctx_t* make_arpctx(u_int16_t op, char **argv, int argi, char *errbuf) {
     ctx->intv = atoi(argv[argi + 8]);
     ctx->lctx = libnet_init(LIBNET_LINK, dev, errbuf);
 
+    if(ctx->lctx == NULL) {
+        fprintf(stderr, "[CRIT] make_arpctx: libnet_init: %s", errbuf);
+        return NULL;
+    }
+
     inet_pton(AF_INET, argv[argi + 4], (void *) &ctx->arp.ip_src);
     inet_pton(AF_INET, argv[argi + 7], (void *) &ctx->arp.ip_dst);
 
@@ -115,7 +127,10 @@ arpctx_t* make_arpctx(u_int16_t op, char **argv, int argi, char *errbuf) {
     errc += ether_parse(ctx->arp.eth_ether_dst, argv[argi + 5]);
     errc += ether_parse(ctx->arp.arp_ether_dst, argv[argi + 6]);
 
-    if(errc != 0) return NULL;
+    if(errc != 0) {
+        fprintf(stderr, "[CRIT] make_arpctx: ether_parse: Invalid argument.");
+        return NULL;
+    }
 
     return ctx;
 }
@@ -124,16 +139,16 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
     for(int argi = 0; argi < argc; argi++) {
         if(!strcmp(argv[argi], "reply")) {
             if(argc < argi + 9) {
-                fprintf(stderr, "[CRIT] Insufficient number of arguments after 'reply', expcet 8, saw %d.\n", argc - argi - 1);
+                fprintf(stderr, "[CRIT] cmd_parse: insufficient number of arguments after 'reply', expcet 8, saw %d.\n", argc - argi - 1);
                 return -1;
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REPLY, argv, argi, errbuf);
             if(ctx == NULL) {
-                fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.\n");
+                fprintf(stderr, "[CRIT] cmd_parse: make_arpctx: invalid argument.\n");
                 return -1;
             }
             char *info = ctx_str(&ctx->arp);
-            fprintf(stderr, "[ADD] %s", info);
+            fprintf(stderr, "[INFO] cmd_parse: added %s.", info);
             free(info);
             ctxlist_insert(ctxlist, ctx);
             argi += 8;
@@ -141,16 +156,16 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
         }
         if(!strcmp(argv[argi], "request")) {
             if(argc < argi + 9) {
-                fprintf(stderr, "[CRIT] Insufficient number of arguments after 'request', expcet 8, saw %d.\n", argc - argi - 1);
+                fprintf(stderr, "[CRIT] cmd_parse: insufficient number of arguments after 'request', expcet 8, saw %d.\n", argc - argi - 1);
                 return -1;
             }
             arpctx_t* ctx = make_arpctx(ARPOP_REQUEST, argv, argi, errbuf);
             if(ctx == NULL) {
-                fprintf(stderr, "[CRIT] make_arpctx: Invalid argument.\n");
+                fprintf(stderr, "[CRIT] cmd_parse: make_arpctx: invalid argument.\n");
                 return -1;
             }
             char *info = ctx_str(&ctx->arp);
-            fprintf(stderr, "[ADD] %s", info);
+            fprintf(stderr, "[INFO] cmd_parse: added %s.", info);
             free(info);
             ctxlist_insert(ctxlist, ctx);
             argi += 8;
@@ -158,11 +173,11 @@ int cmd_parse(int argc, char **argv, char *errbuf, arpctx_list **ctxlist) {
         }
         if(!strcmp(argv[argi], "source")) {
             if(argc < argi + 2) {
-                fprintf(stderr, "[CRIT] Insufficient number of arguments after 'source', expcet 1, saw %d.\n", argc - argi - 1);
+                fprintf(stderr, "[CRIT] cmd_parse: insufficient number of arguments after 'source', expcet 1, saw %d.\n", argc - argi - 1);
                 return -1;
             }
             if(ctxlist_insertf(ctxlist, errbuf, argv[++argi]) < 0) {
-                fprintf(stderr, "[CRIT] ctxlist_insertf: Invalid argument.\n");
+                fprintf(stderr, "[CRIT] cmd_parse: ctxlist_insertf: invalid argument.\n");
                 return -1;
             }
             continue;
@@ -217,7 +232,7 @@ int main(int argc, char **argv) {
     }
 
     if(cmd_parse(argc, argv, errbuf, &ctxlist) < 0) {
-        fprintf(stderr, "[CRIT] cmd_parse: Invalid argument.\n");
+        fprintf(stderr, "[CRIT] main: cmd_parse: invalid argument.\n");
         print_help();
         return 1;
     }
